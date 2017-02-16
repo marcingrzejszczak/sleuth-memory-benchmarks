@@ -5,7 +5,7 @@
 
 	<groupId>com.example</groupId>
 	<artifactId>non-sleuth-application</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.1-SLEUTH-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>non-sleuth-application</name>
