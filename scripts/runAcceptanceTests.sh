@@ -70,6 +70,24 @@ function calculate_99th_percentile() {
     sort -n ${path} | awk '{all[NR] = $0} END{print all[int(NR*0.99 - 0.01)]}' > "${path}_99th"
 }
 
+function print_gc_usage() {
+    local fileName=${1}
+    local path="${LOGS_DIR}/${fileName}.jstat"
+    tail -1 ${path} | awk '{ print $17 }'
+}
+
+function press_any_key_to_continue() {
+    if [[ "${AUTO}" != "yes" ]] ; then
+      echo -e "\nPress any key to continue or 'q' to quit"
+      read key
+      if [[ ${key} = "q" ]]
+      then
+          exit 1
+      fi
+    else
+      echo -e "\nAuto switch was turned on - continuing..."
+    fi
+}
 function killApps() {
     ${ROOT}/scripts/kill.sh
 }
@@ -84,10 +102,11 @@ LOGS_DIR="${ROOT}/target/"
 HEALTH_HOST="127.0.0.1"
 RETRIES=10
 WAIT_TIME=5
-NO_OF_REQUESTS=${NO_OF_REQUESTS:-100}
+NO_OF_REQUESTS=${NO_OF_REQUESTS:-500}
 ALLOWED_DIFFERENCE_IN_PERCENTS=30
 NON_SLEUTH="non-sleuth-application"
 SLEUTH="sleuth-application"
+AUTO="${AUTO:-yes}"
 
 cat <<'EOF'
 
@@ -120,18 +139,22 @@ echo -e "\n\nRunning the non sleuth application\n\n"
 cd "${ROOT}/${NON_SLEUTH}"
 java_jar "${NON_SLEUTH}"
 curl_local_health_endpoint 6666
+press_any_key_to_continue
 echo -e "\n\nSending ${NO_OF_REQUESTS} requests to the app\n\n"
 send_test_request "${NON_SLEUTH}"
 store_heap_dump "${NON_SLEUTH}"
+press_any_key_to_continue
 killApps
 
 echo -e "\n\nRunning the sleuth application\n\n"
 cd "${ROOT}/${SLEUTH}"
 java_jar "${SLEUTH}"
 curl_local_health_endpoint 6666
+press_any_key_to_continue
 echo -e "\n\nSending ${NO_OF_REQUESTS} requests to the app\n\n"
 send_test_request "${SLEUTH}"
 store_heap_dump "${SLEUTH}"
+press_any_key_to_continue
 killApps
 
 calculate_99th_percentile "${NON_SLEUTH}"
@@ -144,8 +167,13 @@ echo "99th percentile of memory usage for a non sleuth app is [${NON_SLEUTH_PERC
 echo "99th percentile of memory usage for a sleuth app is [${SLEUTH_PERCENTILE}]"
 
 DIFFERENCE_IN_MEMORY=$( echo "scale=2; ${SLEUTH_PERCENTILE}-${NON_SLEUTH_PERCENTILE}" | bc)
-INCREASE_IN_PERCENTS=$(echo "scale=2; ${DIFFERENCE_IN_MEMORY}/${NON_SLEUTH_PERCENTILE}*100" | bc)
+INCREASE_IN_PERCENTS=$( echo "scale=2; ${DIFFERENCE_IN_MEMORY}/${NON_SLEUTH_PERCENTILE}*100" | bc)
 
 echo "The Sleuth app is using [${DIFFERENCE_IN_MEMORY}] more memory which means a increase by [${INCREASE_IN_PERCENTS}%]"
+
+echo "GC time for non sleuth app"
+print_gc_usage ${NON_SLEUTH}
+echo "GC time for sleuth app"
+print_gc_usage ${SLEUTH}
 
 cd ${ROOT}
