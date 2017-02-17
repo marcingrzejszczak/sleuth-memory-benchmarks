@@ -60,7 +60,8 @@ function store_heap_dump() {
     local fileName=${1}
     local path="${LOGS_DIR}/${fileName}"
     echo -e "\nStoring heapdump of [${fileName}]"
-    curl -s "http://localhost:6666/heapdump" > "${path}_heapdump.gzip"
+    pid=`jps | grep ${fileName} | awk '{print $1}'`
+    ${JAVA_PATH_TO_BIN}jmap -dump:format=b,file="${path}.hprof" "${pid}"
 }
 
 function calculate_99th_percentile() {
