@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# requires:
-
 set -e
 
 # FUNCTIONS
@@ -16,7 +14,7 @@ function java_jar() {
     pid=$!
     echo ${pid} > ${LOGS_DIR}/${APP_NAME}.pid
     echo -e "[${APP_NAME}] process pid is [${pid}]"
-    echo -e "Logs are under [${LOGS_DIR}/${APP_NAME}.log]\n"
+    echo -e "Logs are under [${LOGS_DIR}${APP_NAME}.log]\n"
     return 0
 }
 
@@ -27,7 +25,7 @@ function curl_health_endpoint() {
     local READY_FOR_TESTS=1
     for i in $( seq 1 "${RETRIES}" ); do
         sleep "${WAIT_TIME}"
-        curl -m 5 "${PASSED_HOST}:${PORT}}/health" && READY_FOR_TESTS=0 && break
+        curl -m 5 "${PASSED_HOST}:${PORT}/health" && READY_FOR_TESTS=0 && break
         echo "Fail #$i/${RETRIES}... will try again in [${WAIT_TIME}] seconds"
     done
     return ${READY_FOR_TESTS}
@@ -40,14 +38,36 @@ function curl_local_health_endpoint() {
 
 function send_test_request() {
     local fileName=${1}
-    for i in {1..${NO_OF_REQUESTS}}; do
-        curl -s "http://localhost:6666/test" >> target/${fileName}
-        echo "\n" >> target/${fileName}
+    local path="${LOGS_DIR}/${fileName}"
+    for i in $( seq 1 "${NO_OF_REQUESTS}" ); do
+        if (( ${i} % 100 == 0 )) ; then
+            echo "Sent ${i}/${NO_OF_REQUESTS} requests"
+        fi
+        local CURL=`curl -s "http://localhost:6666/test"`
+        echo "${CURL}" >> ${path}
     done
 }
 
+function store_heap_dump() {
+    local fileName=${1}
+    local path="${LOGS_DIR}/${fileName}"
+    echo -e "\nStoring heapdump of [${fileName}]"
+    curl -s "http://localhost:6666/heapdump" > "${path}_heapdump"
+}
+
+function calculate_99th_percentile() {
+    local fileName=${1}
+    local path="${LOGS_DIR}/${fileName}"
+    sort -n ${path} | awk '{all[NR] = $0} END{print all[int(NR*0.99 - 0.01)]}' > "${path}_99th"
+}
+
+function calculate_difference() {
+
+    CALCULATED_DIFFERENCE=
+}
+
 function killApps() {
-    pkill -9 -f 0.0.1-SLEUTH-SNAPSHOT
+    ${ROOT}/scripts/kill.sh
 }
 
 # VARIABLES
@@ -60,9 +80,10 @@ LOGS_DIR="${ROOT}/target/"
 HEALTH_HOST="127.0.0.1"
 RETRIES=10
 WAIT_TIME=5
-NO_OF_REQUESTS=100000
-
-mkdir -p ${ROOT}/target
+NO_OF_REQUESTS=${NO_OF_REQUESTS:-100}
+ALLOWED_DIFFERENCE_IN_PERCENTS=30
+NON_SLEUTH="non-sleuth-application"
+SLEUTH="sleuth-application"
 
 cat <<'EOF'
 
@@ -75,6 +96,8 @@ This Bash file will try to see check the memory usage of two apps. One without a
 05) Run the sleuth app
 06) Curl X requests to the app and store the results in target/sleuth
 07) Kill the sleuth app
+08) Calculate the 99 percentile of each of the metrics
+09) Calculate the difference between memory usage of Sleuth vs Non-Sleuth app
 
 _______ _________ _______  _______ _________
 (  ____ \\__   __/(  ___  )(  ____ )\__   __/
@@ -86,20 +109,39 @@ _______ _________ _______  _______ _________
 \_______)   )_(   |/     \||/   \__/   )_(
 EOF
 
-./mvnw clean install -T 2
+./mvnw clean install -T 2 -DskipTests
 
+mkdir -p "${LOGS_DIR}"
 echo -e "\n\nRunning the non sleuth application\n\n"
-cd ${ROOT}/non-sleuth-application
-java_jar "non-sleuth-application"
+cd "${ROOT}/${NON_SLEUTH}"
+java_jar "${NON_SLEUTH}"
 curl_local_health_endpoint 6666
-send_test_request
+echo -e "\n\nSending ${NO_OF_REQUESTS} requests to the app\n\n"
+send_test_request "${NON_SLEUTH}"
+store_heap_dump "${NON_SLEUTH}"
 killApps
 
 echo -e "\n\nRunning the sleuth application\n\n"
-cd ${ROOT}/sleuth-application
-java_jar "sleuth-application"
+cd "${ROOT}/${SLEUTH}"
+java_jar "${SLEUTH}"
 curl_local_health_endpoint 6666
-send_test_request
+echo -e "\n\nSending ${NO_OF_REQUESTS} requests to the app\n\n"
+send_test_request "${SLEUTH}"
+store_heap_dump "${SLEUTH}"
 killApps
+
+calculate_99th_percentile "${NON_SLEUTH}"
+calculate_99th_percentile "${SLEUTH}"
+
+NON_SLEUTH_PERCENTILE=`cat ${LOGS_DIR}/${NON_SLEUTH}_99th`
+SLEUTH_PERCENTILE=`cat ${LOGS_DIR}/${SLEUTH}_99th`
+
+echo "99th percentile of memory usage for a non sleuth app is [${NON_SLEUTH_PERCENTILE}]"
+echo "99th percentile of memory usage for a sleuth app is [${SLEUTH_PERCENTILE}]"
+
+DIFFERENCE_IN_MEMORY=$(( SLEUTH_PERCENTILE - NON_SLEUTH_PERCENTILE ))
+INCREASE_IN_PERCENTS=$(echo "scale=2; ${DIFFERENCE_IN_MEMORY}/${NON_SLEUTH_PERCENTILE}*100" | bc)
+
+echo "The Sleuth app is using [${DIFFERENCE_IN_MEMORY}] more memory which means a increase by [${INCREASE_IN_PERCENTS}%]"
 
 cd ${ROOT}
