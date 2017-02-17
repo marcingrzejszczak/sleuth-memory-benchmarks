@@ -43,8 +43,16 @@ function send_test_request() {
         if (( ${i} % 100 == 0 )) ; then
             echo "Sent ${i}/${NO_OF_REQUESTS} requests"
         fi
-        local CURL=`curl -s "http://localhost:6666/test"`
-        echo "${CURL}" >> ${path}
+        curl -s "http://localhost:6666/test" > /dev/null
+        pid=`jps | grep ${fileName} | awk '{print $1}'`
+        jstatResult=`${JAVA_PATH_TO_BIN}jstat -gc ${pid} | tail -1`
+        echo "${jstatResult}" >> "${path}.jstat"
+        OU=`echo ${jstatResult} | tail -1 | awk '{ print $8 }'`
+        EU=`echo ${jstatResult} | tail -1 | awk '{ print $6 }'`
+        S0U=`echo ${jstatResult} | tail -1 | awk '{ print $3 }'`
+        S1U=`echo ${jstatResult} | tail -1 | awk '{ print $4 }'`
+        totalMemory=$(echo "scale=2; ${OU}+${EU}+${S0U}+${S1U}" | bc)
+        echo "${totalMemory}" >> ${path}
     done
 }
 
@@ -52,18 +60,13 @@ function store_heap_dump() {
     local fileName=${1}
     local path="${LOGS_DIR}/${fileName}"
     echo -e "\nStoring heapdump of [${fileName}]"
-    curl -s "http://localhost:6666/heapdump" > "${path}_heapdump"
+    curl -s "http://localhost:6666/heapdump" > "${path}_heapdump.gzip"
 }
 
 function calculate_99th_percentile() {
     local fileName=${1}
     local path="${LOGS_DIR}/${fileName}"
     sort -n ${path} | awk '{all[NR] = $0} END{print all[int(NR*0.99 - 0.01)]}' > "${path}_99th"
-}
-
-function calculate_difference() {
-
-    CALCULATED_DIFFERENCE=
 }
 
 function killApps() {
@@ -139,7 +142,7 @@ SLEUTH_PERCENTILE=`cat ${LOGS_DIR}/${SLEUTH}_99th`
 echo "99th percentile of memory usage for a non sleuth app is [${NON_SLEUTH_PERCENTILE}]"
 echo "99th percentile of memory usage for a sleuth app is [${SLEUTH_PERCENTILE}]"
 
-DIFFERENCE_IN_MEMORY=$(( SLEUTH_PERCENTILE - NON_SLEUTH_PERCENTILE ))
+DIFFERENCE_IN_MEMORY=$( echo "scale=2; ${SLEUTH_PERCENTILE}-${NON_SLEUTH_PERCENTILE}" | bc)
 INCREASE_IN_PERCENTS=$(echo "scale=2; ${DIFFERENCE_IN_MEMORY}/${NON_SLEUTH_PERCENTILE}*100" | bc)
 
 echo "The Sleuth app is using [${DIFFERENCE_IN_MEMORY}] more memory which means a increase by [${INCREASE_IN_PERCENTS}%]"

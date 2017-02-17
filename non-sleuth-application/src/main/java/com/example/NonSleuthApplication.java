@@ -22,6 +22,7 @@ public class NonSleuthApplication {
 
 	@GetMapping("/test")
 	long test() {
+		System.gc();
 		System.out.println("Calling myself");
 		return this.restTemplate.getForObject("http://localhost:" + this.port + "/totalMemory", Long.class);
 	}
