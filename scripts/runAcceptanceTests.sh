@@ -104,6 +104,7 @@ RETRIES=10
 WAIT_TIME=5
 NO_OF_REQUESTS=${NO_OF_REQUESTS:-500}
 ALLOWED_DIFFERENCE_IN_PERCENTS=30
+ENV_VARS=${ENV_VARS:--Dspring-cloud.version=Dalston.BUILD-SNAPSHOT}
 NON_SLEUTH="non-sleuth-application"
 SLEUTH="sleuth-application"
 AUTO="${AUTO:-yes}"
@@ -132,7 +133,7 @@ _______ _________ _______  _______ _________
 \_______)   )_(   |/     \||/   \__/   )_(
 EOF
 
-./mvnw clean install -T 2 -DskipTests
+./mvnw clean install -T 2 -DskipTests ${ENV_VARS}
 
 mkdir -p "${LOGS_DIR}"
 echo -e "\n\nRunning the non sleuth application\n\n"
