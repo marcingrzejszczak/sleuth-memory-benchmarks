@@ -1,0 +1,17 @@
+= Sleuth Memory Benchmarks
+
+Just run `./scripts/runAcceptanceTests.sh` to run the tests.
+
+With the script you:
+
+```
+01) Build both apps
+02) Run the non sleuth app
+03) Curl X requests to the app and store the results in target/non_sleuth
+04) Kill the non sleuth app
+05) Run the sleuth app
+06) Curl X requests to the app and store the results in target/sleuth
+07) Kill the sleuth app
+08) Calculate the 99 percentile of each of the metrics
+09) Calculate the difference between memory usage of Sleuth vs Non-Sleuth app
+```
