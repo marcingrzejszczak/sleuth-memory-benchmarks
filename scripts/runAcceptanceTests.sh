@@ -108,6 +108,7 @@ ENV_VARS=${ENV_VARS:--Dspring-cloud.version=Dalston.BUILD-SNAPSHOT}
 NON_SLEUTH="non-sleuth-application"
 SLEUTH="sleuth-application"
 AUTO="${AUTO:-yes}"
+WITH_ACTUATOR="${WITH_ACTUATOR:-yes}"
 
 cat <<'EOF'
 
@@ -133,6 +134,13 @@ _______ _________ _______  _______ _________
 \_______)   )_(   |/     \||/   \__/   )_(
 EOF
 
+if [[ "${WITH_ACTUATOR}" == "yes" ]] ; then
+    ENV_VARS="${ENV_VARS} -Pwith_actuator"
+else
+    ENV_VARS="${ENV_VARS} -Pwithout_actuator"
+fi
+
+echo -e "\n\nBuilding apps with the following parameters [${ENV_VARS}]\n\n"
 ./mvnw clean install -T 2 -DskipTests ${ENV_VARS}
 
 mkdir -p "${LOGS_DIR}"
