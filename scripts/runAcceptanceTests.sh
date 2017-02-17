@@ -171,9 +171,14 @@ INCREASE_IN_PERCENTS=$( echo "scale=2; ${DIFFERENCE_IN_MEMORY}/${NON_SLEUTH_PERC
 
 echo "The Sleuth app is using [${DIFFERENCE_IN_MEMORY}] more memory which means a increase by [${INCREASE_IN_PERCENTS}%]"
 
-echo "GC time for non sleuth app"
-print_gc_usage ${NON_SLEUTH}
-echo "GC time for sleuth app"
-print_gc_usage ${SLEUTH}
+NON_SLEUTH_GC=`print_gc_usage ${NON_SLEUTH}`
+SLEUTH_GC=`print_gc_usage ${SLEUTH}`
+echo "GC time for non sleuth app [${NON_SLEUTH_GC}]"
+echo "GC time for sleuth app [${SLEUTH_GC}]"
+
+DIFFERENCE_IN_GC=$( echo "scale=3; ${SLEUTH_GC}-${NON_SLEUTH_GC}" | bc)
+GC_INCREASE_IN_PERCENTS=$( echo "scale=3; ${DIFFERENCE_IN_GC}/${NON_SLEUTH_GC}*100" | bc)
+
+echo "The Sleuth app needs [${DIFFERENCE_IN_GC}] more time (in seconds) which means a increase by [${GC_INCREASE_IN_PERCENTS}%]"
 
 cd ${ROOT}
