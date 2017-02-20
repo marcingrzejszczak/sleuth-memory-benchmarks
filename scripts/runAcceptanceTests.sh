@@ -141,7 +141,7 @@ else
 fi
 
 echo -e "\n\nBuilding apps with the following parameters [${ENV_VARS}]\n\n"
-./mvnw clean install -T 2 -DskipTests ${ENV_VARS}
+./mvnw clean install -q -T 2 -DskipTests ${ENV_VARS}
 
 mkdir -p "${LOGS_DIR}"
 echo -e "\n\nRunning the non sleuth application\n\n"
